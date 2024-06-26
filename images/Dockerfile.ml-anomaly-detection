@@ -1,0 +1,10 @@
+# Dockerfile for ml-anomaly-detection service
+FROM python:3.8-slim
+
+RUN pip install scikit-learn pandas psycopg2-binary kafka-python
+
+WORKDIR /app
+
+COPY ./scripts/ml_anomaly_detection.py .
+
+CMD ["python", "ml_anomaly_detection.py"]

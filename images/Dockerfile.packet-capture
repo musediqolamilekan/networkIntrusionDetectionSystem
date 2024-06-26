@@ -1,0 +1,10 @@
+# Dockerfile for packet-capture service
+FROM python:3.8-slim
+
+RUN pip install scapy kafka-python
+
+WORKDIR /app
+
+COPY ./scripts/packet_capture.py .
+
+CMD ["python", "packet_capture.py"]

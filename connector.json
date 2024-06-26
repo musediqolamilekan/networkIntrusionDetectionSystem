@@ -1,0 +1,23 @@
+{
+  "name": "postgres-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "network_db",
+    "database.server.name": "dbserver1",
+    "table.include.list": "public.networks",
+    "plugin.name": "pgoutput",
+    "database.history.kafka.bootstrap.servers": "broker:29092",
+    "database.history.kafka.topic": "schema-changes.network_db",
+    "schema.history.internal.kafka.bootstrap.servers": "broker:29092",
+    "schema.history.internal.kafka.topic": "schema-changes.network_db",
+    "topic.prefix": "network_db",
+    "max.request.size": "200000000",
+    "buffer.memory": "67108864",
+    "batch.size": "2000000"
+  }
+}

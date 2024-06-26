@@ -1,0 +1,37 @@
+{
+    "trigger": {
+      "schedule": {
+        "interval": "10s"
+      }
+    },
+    "input": {
+      "search": {
+        "request": {
+          "indices": [
+            "logs-*"
+          ],
+          "body": {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "message": "error"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "actions": {
+      "log_error": {
+        "logging": {
+          "text": "Found error in logs: {{ctx.payload.hits.total}} errors"
+        }
+      }
+    }
+  }
+  
