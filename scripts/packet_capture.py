@@ -4,11 +4,12 @@ import json
 import logging
 import sys
 from datetime import datetime
-from collections import defaultdict
 
+# Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger()
 
+# Initialize Kafka producer
 try:
     producer = KafkaProducer(bootstrap_servers='broker:29092', value_serializer=lambda v: json.dumps(v).encode('utf-8'))
     logger.info("Kafka producer initialized successfully")
@@ -17,8 +18,34 @@ except Exception as e:
     sys.exit(1)
 
 # Data structures for traffic analysis
-traffic_stats = defaultdict(lambda: defaultdict(int))
-flow_stats = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+traffic_stats = {
+    'total_packets': 0,
+    'total_bytes': 0,
+    'protocols': {}
+}
+
+flow_stats = {}
+
+def update_traffic_stats(protocol, packet_length):
+    if protocol not in traffic_stats['protocols']:
+        traffic_stats['protocols'][protocol] = {'packets': 0, 'bytes': 0}
+    traffic_stats['protocols'][protocol]['packets'] += 1
+    traffic_stats['protocols'][protocol]['bytes'] += packet_length
+
+def update_flow_stats(src_ip, dst_ip, transport_protocol, packet_length):
+    flow_key = (src_ip, dst_ip)
+    if flow_key not in flow_stats:
+        flow_stats[flow_key] = {
+            'total_packets': 0,
+            'total_bytes': 0,
+            'protocols': {}
+        }
+    if transport_protocol not in flow_stats[flow_key]['protocols']:
+        flow_stats[flow_key]['protocols'][transport_protocol] = {'packets': 0, 'bytes': 0}
+    flow_stats[flow_key]['total_packets'] += 1
+    flow_stats[flow_key]['total_bytes'] += packet_length
+    flow_stats[flow_key]['protocols'][transport_protocol]['packets'] += 1
+    flow_stats[flow_key]['protocols'][transport_protocol]['bytes'] += packet_length
 
 def packet_callback(packet):
     try:
@@ -26,7 +53,7 @@ def packet_callback(packet):
             # Basic packet details
             packet_data = {
                 'timestamp': datetime.now().isoformat(),
-                'packet_id': packet.id if 'id' in packet else None,
+                'packet_id': packet[IP].id if 'id' in packet[IP].fields else None,
                 'event_type': 'packet_capture',
                 'rating': {
                     'priority': 'medium',  
@@ -51,20 +78,15 @@ def packet_callback(packet):
             # Update traffic stats
             traffic_stats['total_packets'] += 1
             traffic_stats['total_bytes'] += len(packet)
-            traffic_stats[packet_data['network_protocol']]['packets'] += 1
-            traffic_stats[packet_data['network_protocol']]['bytes'] += len(packet)
+            update_traffic_stats(packet_data['network_protocol'], len(packet))
 
             # Update flow stats
-            flow_key = (packet[IP].src, packet[IP].dst)
-            flow_stats[flow_key]['total_packets'] += 1
-            flow_stats[flow_key]['total_bytes'] += len(packet)
-            flow_stats[flow_key][packet_data['transport_protocol']]['packets'] += 1
-            flow_stats[flow_key][packet_data['transport_protocol']]['bytes'] += len(packet)
+            update_flow_stats(packet_data['src_ip'], packet_data['dst_ip'], packet_data['transport_protocol'], len(packet))
 
             # Log traffic analysis stats periodically
             if traffic_stats['total_packets'] % 100 == 0:
-                logger.info(f"Traffic Stats: {dict(traffic_stats)}")
-                logger.info(f"Flow Stats: {dict(flow_stats)}")
+                logger.info(f"Traffic Stats: {traffic_stats}")
+                logger.info(f"Flow Stats: {flow_stats}")
 
             # Send packet data to Kafka
             producer.send('network-packets', value=packet_data)

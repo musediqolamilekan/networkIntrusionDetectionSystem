@@ -1,10 +1,20 @@
-# Dockerfile for packet-capture service
+# Dockerfile.packet-capture
+
 FROM python:3.8-slim
 
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y libpcap-dev gcc && \
+    apt-get clean
+
+# Install Python dependencies
 RUN pip install scapy kafka-python
 
+# Copy the packet capture script
+COPY ./scripts/packet_capture.py /app/packet_capture.py
+
+# Set the working directory
 WORKDIR /app
 
-COPY ./scripts/packet_capture.py .
-
+# Run the packet capture script
 CMD ["python", "packet_capture.py"]
