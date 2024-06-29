@@ -8,6 +8,7 @@ from kafka import KafkaProducer
 import json
 import psycopg2
 import logging
+import os
 from datetime import datetime
 
 # Set up logging
@@ -99,6 +100,24 @@ def analyze_behavior_and_predict_threats(df):
     
     return threat_prediction
 
+# Function to block IP address using iptables
+def block_ip(ip_address):
+    try:
+        os.system(f"sudo iptables -A INPUT -s {ip_address} -j DROP")
+        logger.info(f"Blocked IP address: {ip_address}")
+    except Exception as e:
+        logger.error(f"Failed to block IP address {ip_address}: {e}")
+
+# Function to monitor bandwidth and prevent overload
+def monitor_bandwidth(df):
+    bandwidth_threshold = 1000000  # Example threshold in bytes
+    df['total_bytes'] = df.groupby('[network][source][ip]')['[network][bytes_transmitted]'].transform('sum')
+    
+    for index, row in df.iterrows():
+        if row['total_bytes'] > bandwidth_threshold:
+            block_ip(row['[network][source][ip]'])
+            logger.warning(f"IP {row['[network][source][ip]']} blocked due to bandwidth abuse")
+
 # Function to process and analyze new data
 def process_new_data(new_data):
     df_new = preprocess_data(pd.DataFrame([new_data]))
@@ -121,15 +140,19 @@ def process_new_data(new_data):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (new_data['[network][source][ip]'], new_data['[network][destination][ip]'], new_data['network_protocol'], new_data['[network][bytes_transmitted]'], new_data['anomaly'], new_data['threat_prediction'], datetime.now()))
         conn.commit()
+        
+        # Block the source IP of the anomaly
+        block_ip(new_data['[network][source][ip]'])
     else:
         new_data['anomaly'] = False
         new_data['threat_prediction'] = 'No Threat'
 
     logger.info(f"Processed data: {new_data}")
 
-# Example of processing new data
+# Example of processing new data and monitoring bandwidth
 for index, row in df.iterrows():
     process_new_data(row.to_dict())
+monitor_bandwidth(df)
 
 # Close database connection
 cursor.close()
